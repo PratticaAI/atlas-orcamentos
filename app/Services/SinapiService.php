@@ -64,14 +64,23 @@ class SinapiService
     {
         $cacheKey = "sinapi:{$code}:{$state}:{$month}";
 
-        return Cache::remember($cacheKey, now()->addDays($this->cacheDays), function () use ($code, $state, $month) {
-            $item = SinapiItem::where('code', $code)
-                ->where('state', $state)
-                ->where('reference_month', $month)
-                ->first();
+        // Nunca armazena null no cache — item pode ser inserido depois
+        $cached = Cache::get($cacheKey);
+        if ($cached !== null) {
+            return (float) $cached;
+        }
 
-            return $item ? (float) $item->price : null;
-        });
+        $item = SinapiItem::where('code', $code)
+            ->where('state', $state)
+            ->where('reference_month', $month)
+            ->first();
+
+        if ($item) {
+            Cache::put($cacheKey, $item->price, now()->addDays($this->cacheDays));
+            return (float) $item->price;
+        }
+
+        return null;
     }
 
     /**

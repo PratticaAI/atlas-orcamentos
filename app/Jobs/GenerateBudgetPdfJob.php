@@ -25,6 +25,11 @@ class GenerateBudgetPdfJob implements ShouldQueue
 
     public function handle(): void
     {
+        // Idempotente — evita arquivos órfãos em retries
+        if ($this->budget->hasPdf()) {
+            return;
+        }
+
         $this->budget->load(['items', 'user.profile']);
 
         // 1. Renderiza HTML do orçamento

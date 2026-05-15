@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Budget;
 use App\Http\Controllers\Controller;
 use App\Models\Budget;
 use App\Services\BudgetGeneratorService;
+use App\Http\Requests\StoreBudgetRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -40,17 +41,9 @@ class BudgetController extends Controller
     /**
      * Processa formulário → chama IA → redireciona para preview
      */
-    public function store(Request $request)
+    public function store(StoreBudgetRequest $request)
     {
-        $validated = $request->validate([
-            'work_type'   => 'required|in:residential,commercial,renovation,industrial',
-            'area_m2'     => 'required|numeric|min:10|max:50000',
-            'standard'    => 'required|in:simple,medium,high',
-            'state'       => 'required|string|size:2',
-            'description' => 'nullable|string|max:1000',
-            'bdi_percent' => 'nullable|numeric|min:0|max:100',
-            'title'       => 'nullable|string|max:255',
-        ]);
+        $validated = $request->validated();
 
         try {
             $budget = $this->generator->generate(Auth::user(), $validated);
@@ -71,7 +64,7 @@ class BudgetController extends Controller
      */
     public function show(Budget $budget)
     {
-        $this->authorize('view', $budget);
+        abort_if($budget->user_id !== Auth::id(), 403);
         $budget->load('items');
 
         return view('budgets.show', compact('budget'));
@@ -82,7 +75,7 @@ class BudgetController extends Controller
      */
     public function updateItem(Request $request, Budget $budget, int $itemId)
     {
-        $this->authorize('update', $budget);
+        abort_if($budget->user_id !== Auth::id(), 403);
 
         $validated = $request->validate([
             'quantity'   => 'required|numeric|min:0.001',
@@ -112,7 +105,7 @@ class BudgetController extends Controller
      */
     public function downloadPdf(Budget $budget)
     {
-        $this->authorize('view', $budget);
+        abort_if($budget->user_id !== Auth::id(), 403);
         $budget->load(['items', 'user.profile']);
 
         // Dispara job assíncrono se PDF ainda não existe
@@ -142,8 +135,9 @@ class BudgetController extends Controller
      */
     public function duplicate(Budget $budget)
     {
-        $this->authorize('view', $budget);
+        abort_if($budget->user_id !== Auth::id(), 403);
 
+        $budget->load('items'); // evita N+1
         $new = $budget->replicate(['pdf_path', 'status']);
         $new->title  = $budget->title . ' (cópia)';
         $new->status = 'draft';
@@ -165,7 +159,7 @@ class BudgetController extends Controller
      */
     public function destroy(Budget $budget)
     {
-        $this->authorize('delete', $budget);
+        abort_if($budget->user_id !== Auth::id(), 403);
         $budget->delete();
 
         return redirect()

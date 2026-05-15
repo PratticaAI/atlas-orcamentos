@@ -70,15 +70,18 @@ class WebhookController extends Controller
         // Cancela assinatura anterior se existir
         $user->subscriptions()->where('status', 'active')->update(['status' => 'canceled']);
 
-        Subscription::create([
-            'user_id'                => $user->id,
-            'plan_id'                => $plan->id,
-            'pagarme_subscription_id' => $pagarmeSubId,
-            'status'                 => 'active',
-            'current_period_start'   => now(),
-            'current_period_end'     => now()->addMonth(),
-            'metadata'               => $data,
-        ]);
+        // firstOrCreate — idempotente contra retries do Pagar.me
+        Subscription::firstOrCreate(
+            ['pagarme_subscription_id' => $pagarmeSubId],
+            [
+                'user_id'              => $user->id,
+                'plan_id'              => $plan->id,
+                'status'               => 'active',
+                'current_period_start' => now(),
+                'current_period_end'   => now()->addMonth(),
+                'metadata'             => $data,
+            ]
+        );
 
         $user->update(['plan_id' => $plan->id]);
 

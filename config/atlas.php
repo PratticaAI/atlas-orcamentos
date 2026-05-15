@@ -16,6 +16,7 @@ return [
     |--------------------------------------------------------------------------
     */
     'pdf_signed_minutes' => env('PDF_SIGNED_URL_MINUTES', 15),
+    'weasyprint_path'    => env('WEASYPRINT_PATH', '/usr/local/bin/weasyprint'),
 
     /*
     |--------------------------------------------------------------------------

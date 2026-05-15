@@ -1,0 +1,58 @@
+name: Deploy ATLAS — Produção
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Deploy para Hostinger
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo, pdo_pgsql, redis, gd, zip
+          coverage: none
+
+      - name: Instalar dependências PHP
+        run: composer install --no-dev --optimize-autoloader --no-interaction
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar dependências Node e build assets
+        run: |
+          npm ci
+          npm run build
+
+      - name: Decodificar .env de produção
+        run: |
+          echo "${{ secrets.ENV_PRODUCTION_B64 }}" | base64 -d > .env
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /home/${{ secrets.SSH_USER }}/atlas.prattica.ai
+            git pull origin main
+            composer install --no-dev --optimize-autoloader --no-interaction
+            npm ci && npm run build
+            php artisan migrate --force
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
+            php artisan queue:restart
+            echo "Deploy ATLAS concluído — $(date)"
